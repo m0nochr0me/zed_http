@@ -5,6 +5,7 @@ Driven by .zed/tasks.json:
     run_http.py <file> <row>     run the request at 1-based line <row>
     run_http.py <file> --all     run every request in the file
     add --confirm                preview the request and ask before sending
+    add --pretty                 pretty-print a JSON response body with jq
 
 Request format (REST Client / httpyac style). Requests are delimited by '###'
 lines, ``` fences, or the next method line:
@@ -24,6 +25,7 @@ environment, in that order of precedence.
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -243,7 +245,29 @@ def confirm_prompt():
     return ans in ("", "y", "yes")
 
 
-def run_request(req, vars, confirm=False, label=None):
+def pretty_body(body):
+    """Return `body` reformatted by `jq .`, or unchanged if it isn't valid JSON."""
+    if not body.strip():
+        return body
+    jq = subprocess.run(["jq", "."], input=body, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return jq.stdout if jq.returncode == 0 and jq.stdout.strip() else body
+
+
+def run_curl_pretty(cmd):
+    """Run curl capturing output, then print headers verbatim and prettify a JSON body."""
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE)
+    out = proc.stdout
+    sep = out.find(b"\r\n\r\n")  # curl -i: header block ends at the first blank line
+    if sep == -1:
+        sys.stdout.buffer.write(out)
+    else:
+        sys.stdout.buffer.write(out[:sep + 4])
+        sys.stdout.buffer.write(pretty_body(out[sep + 4:]))
+    sys.stdout.buffer.flush()
+    return proc.returncode
+
+
+def run_request(req, vars, confirm=False, label=None, pretty=False):
     method, url, headers, body = req
     url = substitute(url, vars)
     headers = [(k, substitute(v, vars)) for k, v in headers]
@@ -265,7 +289,7 @@ def run_request(req, vars, confirm=False, label=None):
         print("$ " + shlex.join(cmd) + "\n")
     sys.stdout.flush()  # show the banner before curl writes to the same fd
     try:
-        rc = subprocess.run(cmd).returncode
+        rc = run_curl_pretty(cmd) if pretty else subprocess.run(cmd).returncode
     except FileNotFoundError:
         die("curl not found on PATH")
     print()
@@ -275,9 +299,13 @@ def run_request(req, vars, confirm=False, label=None):
 def main(argv):
     rest = argv[1:]
     confirm = "--confirm" in rest
-    args = [a for a in rest if a != "--confirm"]
+    pretty = "--pretty" in rest
+    args = [a for a in rest if a not in ("--confirm", "--pretty")]
     if len(args) < 2:
-        die("usage: run_http.py <file> <row|--all> [--confirm]")
+        die("usage: run_http.py <file> <row|--all> [--confirm] [--pretty]")
+    if pretty and not shutil.which("jq"):
+        print("run_http: warning: --pretty requested but jq not found; showing raw output", file=sys.stderr)
+        pretty = False
     file_path = Path(args[0])
     selector = args[1]
     try:
@@ -299,7 +327,7 @@ def main(argv):
             die("no HTTP requests found")
         rc = 0
         for idx, req in enumerate(reqs, 1):
-            rc |= run_request(req, vars, confirm=confirm, label=f"request {idx}/{len(reqs)}")
+            rc |= run_request(req, vars, confirm=confirm, pretty=pretty, label=f"request {idx}/{len(reqs)}")
         return rc
 
     try:
@@ -310,7 +338,7 @@ def main(argv):
     req = parse_request(lines[s:e])
     if not req:
         die(f"no HTTP request found at line {row}")
-    return run_request(req, vars, confirm=confirm)
+    return run_request(req, vars, confirm=confirm, pretty=pretty)
 
 
 if __name__ == "__main__":
