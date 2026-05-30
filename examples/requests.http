@@ -1,0 +1,14 @@
+@host = "https://httpbin.org"
+
+### Get models
+GET {{host}}/pipi/pupu HTTP/1.1
+Accept: application/json
+
+### POST a JSON body (Authorization uses {{TOKEN}} from env or .env)
+POST {{host}}/post HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{TOKEN}}
+
+{
+  "pipi": "pupu"
+}

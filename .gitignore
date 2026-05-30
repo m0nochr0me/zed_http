@@ -1,0 +1,29 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.ruff-cache/
+.ruff_cache/
+.tmp-workspace/
+
+# Local runtime artifacts (checkpoints, event logs, scratch)
+.var/
+
+# Virtual environments
+.venv
+
+.env
+*.env
+!example*.env
+.credentials.json
+
+.github/
+.vscode/
+.claude/
+.mcp.json
+
+*.wasm
+grammars/

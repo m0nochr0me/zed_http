@@ -1,0 +1,11 @@
+id = "zed-http"
+name = "HTTP (runnable)"
+description = "HTTP .http files: syntax highlighting plus a run button on each request"
+version = "0.1.0"
+schema_version = 1
+authors = ["m0nochr0me <m0nochr0mex@gmail.com>"]
+repository = "https://github.com/m0nochr0me/zed_http"
+
+[grammars.http]
+repository = "https://github.com/rest-nvim/tree-sitter-http"
+commit = "e061995f0caf2fa30f68fa1fdf2c08bcbd4629a8"
