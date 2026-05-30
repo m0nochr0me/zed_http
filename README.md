@@ -33,6 +33,7 @@ Authorization: Bearer {{SOME_SECRET_TOKEN}}
 
 - Python 3
 - `curl`
+- `jq` (optional) — only for the `--pretty` JSON formatting
 
 ## Status
 
@@ -119,7 +120,8 @@ Put the cursor anywhere inside a request, then either:
   }
   ```
 
-The response (status, headers, body) appears in a terminal tab.
+The response (status, headers, body) appears in a terminal tab, followed by an
+`# elapsed: <N> ms` line with the request's wall-clock time.
 
 Tasks available:
 
@@ -128,6 +130,28 @@ Tasks available:
   the exact `curl` command) and ask before sending; Enter/`y` runs, `n` skips,
   `Ctrl+C` aborts.
 - **Run All HTTP Requests** — run every request in the file in order.
+
+### Options
+
+These flags can be added to a task's `args` (after `$ZED_FILE` and the row/`--all`
+selector):
+
+- **`--pretty`** — pretty-print a JSON response body with [`jq`][jq]. If `jq` is not
+  on `PATH`, the raw body is shown unchanged. Response headers are always left as-is.
+- **`--timeout <seconds>`** — maximum time per request, passed to `curl --max-time`.
+  Defaults to `120`. Accepts `--timeout 30` or `--timeout=30`.
+
+For example, a "pretty" variant of the run task:
+
+```json
+{
+  "label": "Run HTTP Request (pretty)",
+  "command": "run_http.py",
+  "args": ["$ZED_FILE", "$ZED_ROW", "--pretty"],
+  "tags": ["http-request"],
+  "reveal": "always"
+}
+```
 
 ### Markdown
 
@@ -174,3 +198,4 @@ file — prefer `{{NAME}}` and quoted values.
 - [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html)
 
 [grammar]: https://github.com/rest-nvim/tree-sitter-http
+[jq]: https://jqlang.github.io/jq/

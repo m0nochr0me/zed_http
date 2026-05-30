@@ -6,6 +6,7 @@ Driven by .zed/tasks.json:
     run_http.py <file> --all     run every request in the file
     add --confirm                preview the request and ask before sending
     add --pretty                 pretty-print a JSON response body with jq
+    add --timeout <seconds>      max time per request (default 120)
 
 Request format (REST Client / httpyac style). Requests are delimited by '###'
 lines, ``` fences, or the next method line:
@@ -28,6 +29,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT"}
@@ -267,12 +269,12 @@ def run_curl_pretty(cmd):
     return proc.returncode
 
 
-def run_request(req, vars, confirm=False, label=None, pretty=False):
+def run_request(req, vars, confirm=False, label=None, pretty=False, timeout="120"):
     method, url, headers, body = req
     url = substitute(url, vars)
     headers = [(k, substitute(v, vars)) for k, v in headers]
     body = substitute(body, vars) if body else ""
-    cmd = ["curl", "-sS", "-i", "-X", method, url]
+    cmd = ["curl", "-sS", "-i", "--max-time", str(timeout), "-X", method, url]
     for k, v in headers:
         cmd += ["-H", f"{k}: {v}"]
     if body:
@@ -288,21 +290,44 @@ def run_request(req, vars, confirm=False, label=None, pretty=False):
         print(f"# {method} {url}")
         print("$ " + shlex.join(cmd) + "\n")
     sys.stdout.flush()  # show the banner before curl writes to the same fd
+    start = time.perf_counter()
     try:
         rc = run_curl_pretty(cmd) if pretty else subprocess.run(cmd).returncode
     except FileNotFoundError:
         die("curl not found on PATH")
-    print()
+    print(f"\n# elapsed: {(time.perf_counter() - start) * 1000:.0f} ms\n")
     return rc
+
+
+def take_value(args, name, default):
+    """Pull `--name V` or `--name=V` out of args; return (value, remaining args)."""
+    out, val, i = [], default, 0
+    while i < len(args):
+        a = args[i]
+        if a == name:
+            if i + 1 >= len(args):
+                die(f"{name} requires a value")
+            val, i = args[i + 1], i + 2
+        elif a.startswith(name + "="):
+            val, i = a[len(name) + 1:], i + 1
+        else:
+            out.append(a)
+            i += 1
+    return val, out
 
 
 def main(argv):
     rest = argv[1:]
     confirm = "--confirm" in rest
     pretty = "--pretty" in rest
+    timeout, rest = take_value(rest, "--timeout", "120")
+    try:
+        float(timeout)
+    except ValueError:
+        die(f"invalid --timeout: {timeout!r}")
     args = [a for a in rest if a not in ("--confirm", "--pretty")]
     if len(args) < 2:
-        die("usage: run_http.py <file> <row|--all> [--confirm] [--pretty]")
+        die("usage: run_http.py <file> <row|--all> [--confirm] [--pretty] [--timeout <seconds>]")
     if pretty and not shutil.which("jq"):
         print("run_http: warning: --pretty requested but jq not found; showing raw output", file=sys.stderr)
         pretty = False
@@ -327,7 +352,7 @@ def main(argv):
             die("no HTTP requests found")
         rc = 0
         for idx, req in enumerate(reqs, 1):
-            rc |= run_request(req, vars, confirm=confirm, pretty=pretty, label=f"request {idx}/{len(reqs)}")
+            rc |= run_request(req, vars, confirm=confirm, pretty=pretty, timeout=timeout, label=f"request {idx}/{len(reqs)}")
         return rc
 
     try:
@@ -338,7 +363,7 @@ def main(argv):
     req = parse_request(lines[s:e])
     if not req:
         die(f"no HTTP request found at line {row}")
-    return run_request(req, vars, confirm=confirm, pretty=pretty)
+    return run_request(req, vars, confirm=confirm, pretty=pretty, timeout=timeout)
 
 
 if __name__ == "__main__":
