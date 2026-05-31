@@ -1,16 +1,18 @@
 ; Highlight HTTP methods
 (method) @function.method
 
-; Highlight HTTP comments
-(comment) @comment
+; Highlight HTTP comments and request separators
+[
+  (comment)
+  (request_separator)
+] @comment
 
-; Highlight URLs and paths
-(target_url) @string.url
-(host) @string.url
-(path) @string.url
+; Highlight the request target URL
+(request
+  url: (target_url) @string.url)
 
 ; Highlight HTTP headers
-(header name: (name) @property)
+(header name: (header_entity) @property)
 (header value: (value) @string)
 
 ; Highlight HTTP status codes and status texts
@@ -20,16 +22,13 @@
 ; Highlight HTTP versions
 (http_version) @keyword
 
-; Highlight variables and script variables
+; Highlight variables (overrides URL/header coloring for {{...}})
 (variable) @variable
-(script_variable) @variable.special
 
 ; Highlight different types of request bodies
 (json_body) @string.special
 (xml_body) @string.special
 (graphql_body) @string.special
 (external_body) @string.special
-(form_data) @string.special
-
-; Highlight query parameters
-(query_param) @string
+(multipart_form_data) @string.special
+(raw_body) @string.special
